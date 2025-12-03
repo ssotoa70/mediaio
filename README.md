@@ -1,64 +1,41 @@
 # MediaIO
 
-CLI to benchmark media-style frame I/O (producer/consumer) similar to `vidio`.
+MediaIO is a CLI benchmark for media-style I/O (frame-based write/read) with cinematic presets, per-stream and aggregate stats, integrity checks, and JSON outputs tailored for shared storage (NFS/SMB) and local filesystems.
+
+## Quick Start
+```bash
+npm install
+npm run build
+npm run cli -- ./out --framesize dpx-4k-10 --frames 100 --queue-depth 4 --json
+```
+
+## Key Features
+- Frame-based producer/consumer with per-stream + aggregate metrics (fps, throughput, latency percentiles, drops/errors).
+- Cinematic presets (DPX/EXR/TIFF/J2K/PNG/JPEG + legacy) using formula-driven frame sizing; checksum option.
+- Warm-up and duration controls; configurable latency percentiles and optional histogram.
+- Filesystem detection (local vs network), NDJSON output for dashboards.
+
+## Documentation
+- Architecture: `docs/ARCHITECTURE.md`
+- Installation: `docs/INSTALLATION.md`
+- Usage & CLI options: `docs/USAGE.md`
+- Roadmap: `docs/ROADMAP.md`
+- Security: `docs/SECURITY.md`
+- Changelog: `docs/CHANGELOG.md`
+- Contributing: `docs/CONTRIBUTING.md`
+- FAQ: `docs/FAQ.md`
+- PRD & cinematic formats: `docs/PRD.md`, `docs/FORMATS.md`
+
+## Wiki & Project Board
+- Wiki (overview, ops, troubleshooting, ADRs) — create in GitHub Wiki; link it here once enabled.
+- Project board (GitHub Projects v2) — statuses: Backlog/Planning/In Progress/Review/Testing/Blocked/Done; tags: documentation/refactor/automation/performance/security/cleanup/future/nice-to-have/breaking-change. Populate with structure, docs, future roadmap, and technical enhancements.
 
 ## Status
-- PRD drafted in `apps/mediaIO/PRD.md`.
-- MVP CLI implemented (producer/consumer, per-stream + aggregate stats, filesystem detection). Tests cover parsing helpers.
+- Current version: `0.3.0`
+- Code: `src/`
+- Tests: `tests/`
+- Assets/diagrams: `assets/`
+- Automation/templates: `.github/`
 
-## Usage
-```bash
-# install deps
-npm --prefix apps/mediaIO install
-
-# write frames into ./out (default mode is write)
-npm --prefix apps/mediaIO run cli -- ./out --framesize hdtv --frames 100
-
-# read back and verify
-npm --prefix apps/mediaIO run cli -- --read ./out
-
-# async write with queue depth and frame rate
-npm --prefix apps/mediaIO run cli -- ./out --framerate 60 --queue-depth 4
-
-# NDJSON stats (aggregate + per-stream) tagged with a label
-npm --prefix apps/mediaIO run cli -- ./out --frames 100 --json --label nfs-test
-
-# list cinematic frame presets
-npm --prefix apps/mediaIO run cli -- --list-presets
-
-# enable checksums (write & verify; adds CPU overhead)
-npm --prefix apps/mediaIO run cli -- ./out --frames 100 --checksum
-
-# run for a fixed duration with warmup and custom percentiles
-npm --prefix apps/mediaIO run cli -- ./out --duration 30 --warmup-frames 50 --percentiles 50,90,99.9 --histogram
-```
-
-Key options:
-- `--read` / `--write`: choose consumer or producer (default write).
-- `--framesize`: frame preset (`dpx-4k-10`, `exr-4k-16f`, `tiff-4k-16`, `png-4k-16`, `hdtv`, etc.) or bytes with k/K/m/M/g/G suffix.
-  - See `apps/mediaIO/FORMATS.md` for preset formulas and assumptions.
-- `--frames`: total frames (0 = run until interrupted).
-- `--frames-per-file`: frames grouped per file (default 1).
-- `--framerate`: target fps (async only).
-- `--queue-depth`: async pipeline depth (0 = synchronous).
-- `--iosize`: chunked I/O size for synchronous mode.
-- `--prefix`: filename prefix (default `mediaio`).
-- `--stats-interval`: milliseconds between stats prints (default 1000).
-- `--json`: emit NDJSON snapshots instead of text (aggregate + per-stream).
-- `--label`: tag runs (included in text and JSON output).
-- `--checksum`: compute and verify per-file checksums (optional; adds CPU overhead).
-- `--warmup-frames`: frames to exclude from stats (warm-up phase).
-- `--duration`: max duration in seconds (stop when reached, even if frames remain).
-- `--percentiles`: comma-separated latency percentiles to compute (default `50,75,90,95,99,99.9`).
-- `--histogram`: include latency histogram in JSON output (default buckets in ms).
-
-The tool auto-detects filesystem type (local vs network) on best-effort basis and includes it in the run header and JSON output. Per-stream and aggregate stats include fps, throughput, bytes, dropped frames, errors, and latency percentiles (min/p50/p75/p90/p95/p99/p99.9).
-
-### Shared storage (NFS/SMB) recipe
-```bash
-# example: stress an NFS/SMB mount with async writes and JSON metrics
-npm --prefix apps/mediaIO run cli -- /mnt/share --framesize hdtv --frames 1000 \
-  --queue-depth 4 --framerate 120 --stats-interval 1000 --json --label nfs-bench
-```
-
-If multiple directories are provided (multiple mounts), per-stream stats will be reported for each path in both text and JSON modes.
+## License
+MIT (default). Update `LICENSE` if different is required.

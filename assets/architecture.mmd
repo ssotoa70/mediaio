@@ -1,0 +1,9 @@
+flowchart LR
+  CLI --> Runner
+  Runner --> Streams[Per-dir streams]
+  Streams --> IO[Read/Write Frames]
+  IO --> Checksums[(Optional Checksums)]
+  IO --> Stats[Stats Collector]
+  Stats --> Reporter[Text / NDJSON]
+  Runner --> FS[Filesystem Detect]
+  Runner --> Formats[Frame Presets]
