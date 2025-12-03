@@ -20,11 +20,10 @@ This roadmap tracks planned, in-progress, and completed work with a focus on rel
 - ✅ Shared storage recipe documented in README.
 - ✅ Frame-based cinematic presets (DPX/EXR/TIFF/J2K/PNG/JPEG + legacy hdtv/uhd/4k) with formula-driven frame size computation and `--list-presets`.
 - ✅ Optional per-file checksum support (write + verify) with CLI flag and warnings about overhead.
+- ✅ Warm-up and duration controls (`--warmup-frames`, `--duration`) to exclude warm-up from stats and cap runs.
+- ✅ Configurable latency percentiles (`--percentiles`) and optional histogram output (`--histogram`).
 
 ## Near-Term Roadmap
-- 🧪 Integrity & reliability: add optional per-file checksum (write + verify on read) to catch silent truncation/caching issues on NFS/SMB. Define formats (e.g., CRC32/xxhash64) and overhead measurement.
-- 🧪 Warm-up & steady-state: support `--warmup-frames` (excluded from stats) and `--duration` runs to avoid cold-cache skew. Decide defaults and how to mark warm-up in JSON.
-- 🧪 Latency detail: allow configurable percentiles (`--percentiles 50,90,95,99,99.9`) and add a small histogram in JSON for tail analysis.
 - 🧪 Concurrency visibility: report queue utilization and time spent waiting vs performing I/O to highlight server-side throttling.
 - 🧪 Read-after-write path: `--rw` mode to immediately read/verify after each write for end-to-end validation.
 - 🧪 Metadata focus: optional cleanup flag and separate counters for create/delete throughput to expose metadata bottlenecks on shared storage.

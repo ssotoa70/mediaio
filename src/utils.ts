@@ -84,3 +84,21 @@ export function safePad(num: number, digits = 7): string {
 }
 
 export const sleep = delay;
+
+export function parsePercentiles(input: string): number[] {
+  const parts = input
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) {
+    throw new Error("Percentiles list cannot be empty.");
+  }
+  const values = parts.map((p) => {
+    const n = Number.parseFloat(p);
+    if (!Number.isFinite(n) || n <= 0 || n >= 100) {
+      throw new Error(`Invalid percentile value "${p}". Must be between 0 and 100 (exclusive).`);
+    }
+    return n;
+  });
+  return Array.from(new Set(values)).sort((a, b) => a - b);
+}

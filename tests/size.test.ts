@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSize } from "../src/utils.js";
+import { parsePercentiles, parseSize } from "../src/utils.js";
 import { frameSizeFromPreset, FRAME_PRESETS } from "../src/formats.js";
 
 describe("parseSize", () => {
@@ -27,5 +27,10 @@ describe("parseSize", () => {
   it("throws on invalid values", () => {
     expect(() => parseSize("bad")).toThrow();
     expect(() => parseSize("12x")).toThrow();
+  });
+
+  it("parses percentiles", () => {
+    expect(parsePercentiles("50, 90,99.9")).toEqual([50, 90, 99.9]);
+    expect(() => parsePercentiles("0,100")).toThrow();
   });
 });

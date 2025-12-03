@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import path from "node:path";
 import { run, RunOptions } from "./runner.js";
-import { parseSize } from "./utils.js";
+import { parsePercentiles, parseSize } from "./utils.js";
 import { listPresetSummaries } from "./formats.js";
 
 const program = new Command();
@@ -29,6 +29,14 @@ program
   .option("--json", "emit stats as NDJSON instead of text", false)
   .option("-l, --label <label>", "tag to include in outputs", undefined)
   .option("--checksum", "compute and verify per-file checksums (adds CPU overhead)", false)
+  .option("--warmup-frames <number>", "frames to warm up (excluded from stats)", "0")
+  .option("--duration <seconds>", "max duration to run (seconds)", undefined)
+  .option(
+    "--percentiles <list>",
+    "comma-separated latency percentiles (default 50,75,90,95,99,99.9)",
+    "50,75,90,95,99,99.9",
+  )
+  .option("--histogram", "include latency histogram in JSON output", false)
   .option("--list-presets", "list available frame presets and exit", false);
 
 program.parse();
@@ -48,6 +56,10 @@ const opts = program.opts<{
   json: boolean;
   label?: string;
   checksum: boolean;
+  warmupFrames: string;
+  duration?: string;
+  percentiles: string;
+  histogram: boolean;
   listPresets: boolean;
 }>();
 
@@ -77,6 +89,7 @@ try {
   const sizeResult = parseSize(opts.framesize);
   const frameSize = sizeResult.value;
   const ioSize = opts.iosize ? parseSize(opts.iosize).value : undefined;
+  const percentiles = parsePercentiles(opts.percentiles);
 
   const options: RunOptions = {
     mode,
@@ -94,6 +107,10 @@ try {
     label: opts.label,
     presetId: sizeResult.preset,
     checksum: Boolean(opts.checksum),
+    warmupFrames: Number.parseInt(opts.warmupFrames, 10),
+    durationSeconds: opts.duration ? Number.parseFloat(opts.duration) : undefined,
+    percentiles,
+    histogramEdges: opts.histogram ? [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500] : undefined,
   };
 
   validateOptions(options);
@@ -110,4 +127,8 @@ function validateOptions(options: RunOptions) {
   if (options.queueDepth < 0) throw new Error("queue-depth must be >= 0.");
   if (options.framerate !== undefined && options.framerate <= 0) throw new Error("framerate must be > 0.");
   if (options.statsIntervalMs < 100) throw new Error("stats interval too small (min 100ms).");
+  if (options.warmupFrames < 0) throw new Error("warmup-frames must be >= 0.");
+  if (options.durationSeconds !== undefined && options.durationSeconds <= 0) {
+    throw new Error("duration must be > 0 seconds.");
+  }
 }

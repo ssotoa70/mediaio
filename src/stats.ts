@@ -20,12 +20,11 @@ export type IntervalSnapshot = {
   throughput: string;
   latency: {
     min: number;
-    p50: number;
-    p75: number;
-    p90: number;
-    p95: number;
-    p99: number;
-    p999: number;
+    percentiles: Record<string, number>;
+    histogram?: {
+      edges: number[];
+      counts: number[];
+    };
   };
 };
 
@@ -34,8 +33,12 @@ export type TotalsSnapshot = IntervalSnapshot;
 export class StatsCollector {
   private interval: IntervalCounters;
   private totals: IntervalCounters;
+  private readonly percentiles: number[];
+  private readonly histogramEdges?: number[];
 
-  constructor() {
+  constructor(percentiles: number[], histogramEdges?: number[]) {
+    this.percentiles = percentiles;
+    this.histogramEdges = histogramEdges;
     const now = performance.now();
     this.interval = {
       frames: 0,
@@ -124,22 +127,25 @@ export class StatsCollector {
 
   private computeLatency(values: number[]) {
     const filtered = values.filter((v) => Number.isFinite(v));
-    return {
-      min: filtered.length ? Math.min(...filtered) : 0,
-      p50: percentile(filtered, 50),
-      p75: percentile(filtered, 75),
-      p90: percentile(filtered, 90),
-      p95: percentile(filtered, 95),
-      p99: percentile(filtered, 99),
-      p999: percentile(filtered, 99.9),
-    };
+    const min = filtered.length ? Math.min(...filtered) : 0;
+    const percentiles: Record<string, number> = {};
+    for (const p of this.percentiles) {
+      percentiles[p.toString()] = percentile(filtered, p);
+    }
+
+    const histogram = this.histogramEdges ? buildHistogram(filtered, this.histogramEdges) : undefined;
+
+    return { min, percentiles, histogram };
   }
 }
 
 export function formatInterval(label: string, snapshot: IntervalSnapshot) {
   const latency = snapshot.latency;
+  const p50 = latency.percentiles["50"] ?? latency.percentiles["50.0"];
+  const p90 = latency.percentiles["90"] ?? latency.percentiles["90.0"] ?? latency.percentiles["95"];
+  const p99 = latency.percentiles["99"] ?? latency.percentiles["99.0"] ?? latency.percentiles["99.9"];
   return `${label} | ${snapshot.frames} frames | ${snapshot.fps.toFixed(1)} fps | ${snapshot.throughput} | ` +
-    `lat(ms) min ${latency.min.toFixed(1)} p50 ${latency.p50.toFixed(1)} p90 ${latency.p90.toFixed(1)} p99 ${latency.p99.toFixed(1)} | ` +
+    `lat(ms) min ${latency.min.toFixed(1)} p50 ${fmt(p50)} p90 ${fmt(p90)} p99 ${fmt(p99)} | ` +
     `dropped ${snapshot.dropped} | errors ${snapshot.errors}`;
 }
 
@@ -147,4 +153,26 @@ export function formatTotals(label: string, snapshot: TotalsSnapshot) {
   return `${label} total | ${snapshot.frames} frames | ${formatBytes(snapshot.bytes)} | ${snapshot.fps.toFixed(
     2,
   )} fps | ${snapshot.throughput} | dropped ${snapshot.dropped} | errors ${snapshot.errors}`;
+}
+
+function fmt(value: number | undefined) {
+  return value !== undefined ? value.toFixed(1) : "n/a";
+}
+
+function buildHistogram(values: number[], edges: number[]) {
+  const counts = new Array(edges.length + 1).fill(0);
+  for (const v of values) {
+    let placed = false;
+    for (let i = 0; i < edges.length; i += 1) {
+      if (v <= edges[i]) {
+        counts[i] += 1;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      counts[counts.length - 1] += 1;
+    }
+  }
+  return { edges, counts };
 }

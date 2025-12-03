@@ -28,6 +28,9 @@ npm --prefix apps/mediaIO run cli -- --list-presets
 
 # enable checksums (write & verify; adds CPU overhead)
 npm --prefix apps/mediaIO run cli -- ./out --frames 100 --checksum
+
+# run for a fixed duration with warmup and custom percentiles
+npm --prefix apps/mediaIO run cli -- ./out --duration 30 --warmup-frames 50 --percentiles 50,90,99.9 --histogram
 ```
 
 Key options:
@@ -44,6 +47,10 @@ Key options:
 - `--json`: emit NDJSON snapshots instead of text (aggregate + per-stream).
 - `--label`: tag runs (included in text and JSON output).
 - `--checksum`: compute and verify per-file checksums (optional; adds CPU overhead).
+- `--warmup-frames`: frames to exclude from stats (warm-up phase).
+- `--duration`: max duration in seconds (stop when reached, even if frames remain).
+- `--percentiles`: comma-separated latency percentiles to compute (default `50,75,90,95,99,99.9`).
+- `--histogram`: include latency histogram in JSON output (default buckets in ms).
 
 The tool auto-detects filesystem type (local vs network) on best-effort basis and includes it in the run header and JSON output. Per-stream and aggregate stats include fps, throughput, bytes, dropped frames, errors, and latency percentiles (min/p50/p75/p90/p95/p99/p99.9).
 

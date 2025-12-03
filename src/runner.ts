@@ -24,6 +24,10 @@ export type RunOptions = {
   label?: string;
   presetId?: string;
   checksum: boolean;
+  warmupFrames: number;
+  durationSeconds?: number;
+  percentiles: number[];
+  histogramEdges?: number[];
 };
 
 class Limit {
@@ -117,15 +121,17 @@ export async function run(options: RunOptions) {
 
 async function produce(options: RunOptions, fsInfo: Map<string, FilesystemInfo>) {
   await prepareDirs(options.dirs);
-  const totalStats = new StatsCollector();
+  const totalStats = new StatsCollector(options.percentiles, options.histogramEdges);
   const perStreamStats = new Map<string, StatsCollector>();
-  options.dirs.forEach((dir) => perStreamStats.set(dir, new StatsCollector()));
+  options.dirs.forEach((dir) => perStreamStats.set(dir, new StatsCollector(options.percentiles, options.histogramEdges)));
+  const warmup = { remaining: options.warmupFrames };
+  const startTime = performance.now();
 
   const reporter = startReporter(totalStats, perStreamStats, options, fsInfo);
 
   const tasks = options.dirs.map((dir) => {
     const streamStats = perStreamStats.get(dir)!;
-    return produceDir(dir, options, totalStats, streamStats);
+    return produceDir(dir, options, totalStats, streamStats, warmup, startTime);
   });
   await Promise.all(tasks);
 
@@ -138,6 +144,8 @@ async function produceDir(
   options: RunOptions,
   aggregate: StatsCollector,
   streamStats: StatsCollector,
+  warmup: { remaining: number },
+  startTime: number,
 ) {
   const limiter = new Limit(options.queueDepth > 0 ? options.queueDepth : 1);
   const useChunkedIO = options.queueDepth === 0 && options.ioSize && options.ioSize > 0;
@@ -149,6 +157,10 @@ async function produceDir(
   let deadline = 0;
 
   while (options.frames === 0 || produced < options.frames) {
+    if (options.durationSeconds !== undefined && hasElapsed(startTime, options.durationSeconds)) {
+      break;
+    }
+
     const remaining =
       options.frames === 0 ? options.framesPerFile : Math.min(options.framesPerFile, options.frames - produced);
     const buffer = createFrameBuffer(options.frameSize, remaining);
@@ -177,8 +189,13 @@ async function produceDir(
           await writeFile(checksumPath(filePath), checksum.hex, "utf8");
         }
         const latency = performance.now() - start;
-        streamStats.recordSuccess(remaining, buffer.length, latency);
-        aggregate.recordSuccess(remaining, buffer.length, latency);
+        const recordStats = warmup.remaining <= 0;
+        if (recordStats) {
+          streamStats.recordSuccess(remaining, buffer.length, latency);
+          aggregate.recordSuccess(remaining, buffer.length, latency);
+        } else {
+          warmup.remaining = Math.max(0, warmup.remaining - remaining);
+        }
       } catch (error) {
         console.error(`write failed for ${filePath}:`, error);
         streamStats.recordError();
@@ -200,15 +217,17 @@ async function produceDir(
 }
 
 async function consume(options: RunOptions, fsInfo: Map<string, FilesystemInfo>) {
-  const totalStats = new StatsCollector();
+  const totalStats = new StatsCollector(options.percentiles, options.histogramEdges);
   const perStreamStats = new Map<string, StatsCollector>();
-  options.dirs.forEach((dir) => perStreamStats.set(dir, new StatsCollector()));
+  options.dirs.forEach((dir) => perStreamStats.set(dir, new StatsCollector(options.percentiles, options.histogramEdges)));
+  const warmup = { remaining: options.warmupFrames };
+  const startTime = performance.now();
 
   const reporter = startReporter(totalStats, perStreamStats, options, fsInfo);
 
   const tasks = options.dirs.map((dir) => {
     const streamStats = perStreamStats.get(dir)!;
-    return consumeDir(dir, options, totalStats, streamStats);
+    return consumeDir(dir, options, totalStats, streamStats, warmup, startTime);
   });
   await Promise.all(tasks);
 
@@ -221,6 +240,8 @@ async function consumeDir(
   options: RunOptions,
   aggregate: StatsCollector,
   streamStats: StatsCollector,
+  warmup: { remaining: number },
+  startTime: number,
 ) {
   const files = await listFiles(dir, options.prefix);
   if (!files.length) {
@@ -237,6 +258,9 @@ async function consumeDir(
 
   for (const fileName of files) {
     if (options.frames > 0 && consumed >= options.frames) {
+      break;
+    }
+    if (options.durationSeconds !== undefined && hasElapsed(startTime, options.durationSeconds)) {
       break;
     }
 
@@ -285,8 +309,13 @@ async function consumeDir(
           }
         }
 
-        streamStats.recordSuccess(frameCount, data.length, duration);
-        aggregate.recordSuccess(frameCount, data.length, duration);
+        const recordStats = warmup.remaining <= 0;
+        if (recordStats) {
+          streamStats.recordSuccess(frameCount, data.length, duration);
+          aggregate.recordSuccess(frameCount, data.length, duration);
+        } else {
+          warmup.remaining = Math.max(0, warmup.remaining - frameCount);
+        }
       } catch (error) {
         console.error(`read failed for ${filePath}:`, error);
         streamStats.recordError();
@@ -397,6 +426,10 @@ function toJson(
     framesPerFile: options.framesPerFile,
     framerate: options.framerate ?? null,
     queueDepth: options.queueDepth,
+    warmupFrames: options.warmupFrames,
+    durationSeconds: options.durationSeconds ?? null,
+    percentiles: options.percentiles,
+    histogram: Boolean(options.histogramEdges),
     stats: {
       intervalSeconds: snapshot.durationSeconds,
       frames: snapshot.frames,
@@ -463,10 +496,16 @@ function logRunHeader(options: RunOptions, fsInfo: FilesystemInfo[]) {
     `framesPerFile=${options.framesPerFile}`,
     `framerate=${options.framerate ?? "unlimited"}`,
     `queueDepth=${options.queueDepth}`,
+    options.warmupFrames > 0 ? `warmupFrames=${options.warmupFrames}` : undefined,
+    options.durationSeconds ? `duration=${options.durationSeconds}s` : undefined,
     `dirs=${options.dirs.join(",")}`,
     `fs=${fsInfo.map(describeFilesystem).join("; ")}`,
     options.label ? `label=${options.label}` : undefined,
   ];
 
   console.log(parts.filter(Boolean).join(" | "));
+}
+
+function hasElapsed(startTime: number, durationSeconds: number): boolean {
+  return performance.now() - startTime >= durationSeconds * 1000;
 }
