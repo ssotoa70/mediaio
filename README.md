@@ -27,7 +27,7 @@ npm run cli -- ./out --framesize dpx-4k-10 --frames 100 --queue-depth 4 --json
 - PRD & cinematic formats: `docs/PRD.md`, `docs/FORMATS.md`
 
 ## Wiki & Project Board
-- Wiki (overview, ops, troubleshooting, ADRs) — create in GitHub Wiki; link it here once enabled.
+- Wiki (overview, ops, troubleshooting, ADRs) — see GitHub Wiki (create/update there).
 - Project board (GitHub Projects v2) — statuses: Backlog/Planning/In Progress/Review/Testing/Blocked/Done; tags: documentation/refactor/automation/performance/security/cleanup/future/nice-to-have/breaking-change. Populate with structure, docs, future roadmap, and technical enhancements.
 
 ## Status
